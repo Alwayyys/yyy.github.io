@@ -8,6 +8,7 @@
         * {
             user-select: none;
             box-sizing: border-box;
+            touch-action: none;  /* 防止触摸时页面滚动/缩放，提高拖拽流畅度 */
         }
 
         body {
@@ -114,6 +115,7 @@
             cursor: crosshair;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            touch-action: none;  /* 关键：禁止触摸时浏览器默认滚动/缩放 */
         }
 
         .components-bar {
@@ -151,6 +153,7 @@
             transition: 0.2s;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             border: 1px solid #e2cf9e;
+            touch-action: manipulation; /* 保持可点击，但不干扰canvas拖拽 */
         }
         .comp-item:active { cursor: grabbing; }
         .comp-item:hover { background: #fff3e0; transform: scale(1.02); }
@@ -175,6 +178,7 @@
             color: white;
             cursor: pointer;
             transition: 0.2s;
+            touch-action: manipulation;
         }
         .tool-btn.active { background: #f39c12; box-shadow: 0 0 0 2px #ffe0a3; color: #2c2b26; }
         .tool-btn:hover { background: #1f3e4c; transform: scale(0.97); }
@@ -335,6 +339,26 @@
         let draggingWaypointIndex = null;
         let selectedCompId = null;
         let pendingAddType = null;
+
+        // 辅助：将触摸/鼠标事件统一转换为画布坐标
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            let mx = (clientX - rect.left) * scaleX;
+            let my = (clientY - rect.top) * scaleY;
+            mx = Math.min(Math.max(mx, 0), width);
+            my = Math.min(Math.max(my, 0), height);
+            return { mx, my };
+        }
 
         function generatePinId() { return nextPinId++; }
 
@@ -813,13 +837,10 @@
             return null;
         }
 
-        // 事件处理
-        function handleMouseDown(e) {
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            let mx = (e.clientX - rect.left) * scaleX;
-            let my = (e.clientY - rect.top) * scaleY;
+        // 统一的事件处理 (支持触摸和鼠标)
+        function handleStart(e) {
+            e.preventDefault();
+            const { mx, my } = getCanvasCoords(e);
             const hitWp = hitTestWaypoint(mx, my);
             if(hitWp) { draggingWaypointIndex = hitWp; selectedWireId = hitWp.wireId; drawAll(); return; }
             if(isWireMode) {
@@ -878,24 +899,16 @@
             else { selectedWireId = null; selectedCompId = null; drawAll(); }
         }
 
-        function handleMouseMove(e) {
+        function handleMove(e) {
+            e.preventDefault();
+            const { mx, my } = getCanvasCoords(e);
             if(draggedComp && isDraggingComponent) {
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
-                let mx = (e.clientX - rect.left) * scaleX;
-                let my = (e.clientY - rect.top) * scaleY;
                 draggedComp.x = Math.min(Math.max(mx + dragOffsetX, 45), width-45);
                 draggedComp.y = Math.min(Math.max(my + dragOffsetY, 45), height-45);
                 drawAll();
                 return;
             }
             if(draggedFurniture) {
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
-                let mx = (e.clientX - rect.left) * scaleX;
-                let my = (e.clientY - rect.top) * scaleY;
                 let newX = Math.min(Math.max(mx + dragFurOffsetX, 5), width - draggedFurniture.w - 5);
                 let newY = Math.min(Math.max(my + dragFurOffsetY, 5), height - draggedFurniture.h - 5);
                 draggedFurniture.x = newX;
@@ -904,11 +917,6 @@
                 return;
             }
             if(draggingWaypointIndex) {
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
-                let mx = (e.clientX - rect.left) * scaleX;
-                let my = (e.clientY - rect.top) * scaleY;
                 const wire = wires.find(w => w.id === draggingWaypointIndex.wireId);
                 if(wire && wire.waypoints && wire.waypoints[draggingWaypointIndex.pointIndex]) {
                     wire.waypoints[draggingWaypointIndex.pointIndex] = { x: mx, y: my };
@@ -917,16 +925,19 @@
             }
         }
 
-        function handleMouseUp(e) { isDraggingComponent = false; draggedComp = null; draggedFurniture = null; draggingWaypointIndex = null; }
+        function handleEnd(e) {
+            e.preventDefault();
+            isDraggingComponent = false;
+            draggedComp = null;
+            draggedFurniture = null;
+            draggingWaypointIndex = null;
+        }
 
-        function handleDoubleClick(e) {
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            let mx = (e.clientX - rect.left) * scaleX;
-            let my = (e.clientY - rect.top) * scaleY;
+        function handleDoubleClickOrTap(e) {
+            e.preventDefault();
+            const { mx, my } = getCanvasCoords(e);
             const wire = hitTestWire(mx, my);
-            if(wire) { addWaypointToWire(wire, mx, my); e.preventDefault(); }
+            if(wire) { addWaypointToWire(wire, mx, my); }
         }
 
         function setupLibrary() {
@@ -942,11 +953,7 @@
             });
             canvas.addEventListener('click', (e) => {
                 if(pendingAddType) {
-                    const rect = canvas.getBoundingClientRect();
-                    const scaleX = canvas.width/rect.width;
-                    const scaleY = canvas.height/rect.height;
-                    let mx = (e.clientX - rect.left)*scaleX;
-                    let my = (e.clientY - rect.top)*scaleY;
+                    const { mx, my } = getCanvasCoords(e);
                     addComponent(pendingAddType, mx, my);
                     pendingAddType = null;
                 }
@@ -987,10 +994,19 @@
         function init() {
             setupLibrary();
             bindTools();
-            canvas.addEventListener('mousedown', handleMouseDown);
-            canvas.addEventListener('mousemove', handleMouseMove);
-            canvas.addEventListener('mouseup', handleMouseUp);
-            canvas.addEventListener('dblclick', handleDoubleClick);
+            // 同时监听鼠标和触摸事件
+            canvas.addEventListener('mousedown', handleStart);
+            window.addEventListener('mousemove', handleMove);
+            window.addEventListener('mouseup', handleEnd);
+            canvas.addEventListener('touchstart', handleStart, { passive: false });
+            window.addEventListener('touchmove', handleMove, { passive: false });
+            window.addEventListener('touchend', handleEnd);
+            canvas.addEventListener('dblclick', handleDoubleClickOrTap);
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    handleDoubleClickOrTap(e);
+                }
+            });
             updateCircuit();
         }
 
