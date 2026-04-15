@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>模拟安装照明电路</title>
+    <title>模拟安装照明电路 - 触摸版</title>
     <style>
         * {
             user-select: none;
             box-sizing: border-box;
-            touch-action: none; /* 防止触摸时页面滚动/缩放，但保留canvas内滚动由js控制 */
+            touch-action: none; /* 完全禁止触摸滚动/缩放，由js处理所有触摸行为 */
         }
 
         body {
@@ -20,7 +20,6 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
-            touch-action: pan-y pinch-zoom; /* 允许垂直滚动，但canvas内阻止 */
         }
 
         .app-container {
@@ -113,10 +112,9 @@
         canvas {
             display: block;
             background: #fdf8ed;
-            cursor: crosshair;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            touch-action: none; /* 完全禁止触摸滚动，由js处理拖拽 */
+            touch-action: none;
         }
 
         .components-bar {
@@ -150,14 +148,13 @@
             flex-direction: column;
             align-items: center;
             gap: 8px;
-            cursor: grab;
+            cursor: pointer;
             transition: 0.2s;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             border: 1px solid #e2cf9e;
             touch-action: manipulation;
         }
-        .comp-item:active { cursor: grabbing; }
-        .comp-item:hover { background: #fff3e0; transform: scale(1.02); }
+        .comp-item:active { opacity: 0.7; }
         .comp-icon { width: 64px; height: 64px; background: #efe3ce; border-radius: 40px; display: flex; align-items: center; justify-content: center; font-size: 2.3rem; }
         .comp-name { font-size: 0.85rem; font-weight: 600; color: #5a3e2b; }
 
@@ -182,7 +179,7 @@
             touch-action: manipulation;
         }
         .tool-btn.active { background: #f39c12; box-shadow: 0 0 0 2px #ffe0a3; color: #2c2b26; }
-        .tool-btn:hover { background: #1f3e4c; transform: scale(0.97); }
+        .tool-btn:active { transform: scale(0.96); }
 
         .instructions {
             background: #cfbc8f;
@@ -221,7 +218,7 @@
     <div class="hint-area">
         <div class="hint-text">
             <span>💡 提示栏</span>
-            <span id="hintMessage">✨ 单击电路元件放置在房间的合适位置，长按2秒拖拽移动，短按选中/开关切换</span>
+            <span id="hintMessage">✨ 短按=点击/选中/开关切换 | 长按2秒=拖拽移动元件/家具</span>
             <div class="status-led" id="hintLed"></div>
         </div>
     </div>
@@ -253,7 +250,7 @@
         <span>🪑 可拖拽家具：门窗/床/桌 直接长按2秒拖拽移动</span>
         <span>💡 双击导线增加直角控制点，拖拽圆点改变走向</span>
         <span>🔘 单击开关文字区闭合/断开，长按空白处拖拽移动</span>
-        <span>📱 触摸操作：短按=点击/选中，长按2秒=拖拽</span>
+        <span>📱 触摸操作：短按=点击，长按2秒=拖拽</span>
     </div>
 </div>
 
@@ -302,9 +299,6 @@
                 }
                 return map;
             }
-            getNodeId(pinId) {
-                return this.find(pinId);
-            }
         }
 
         // ----- 全局变量 -----
@@ -346,9 +340,8 @@
         let longPressTimer = null;
         let isLongPressing = false;
         let touchStartX = 0, touchStartY = 0;
-        let pendingDragTarget = null; // 存储长按准备拖拽的目标: { type: 'comp', comp } 或 { type: 'furniture', furniture }
-        let pendingSwitchComp = null;  // 用于开关区分点击区域
-        let isTouchMoving = false;
+        let pendingDragTarget = null; // { type, target }
+        let touchActive = false;
 
         function generatePinId() { return nextPinId++; }
 
@@ -376,13 +369,10 @@
 
         function updateCircuit() {
             const pinToNode = new Map();
-            const nodeToPins = new Map();
             const sets = uf.getSets();
             for (let [root, pinSet] of sets.entries()) {
-                const nodeId = root;
-                nodeToPins.set(nodeId, pinSet);
                 for (let pin of pinSet) {
-                    pinToNode.set(pin, nodeId);
+                    pinToNode.set(pin, root);
                 }
             }
 
@@ -498,7 +488,7 @@
                 if (hasBattery && components.some(c => c.type === 'bulb')) {
                     hintDiv.innerHTML = "❌ 未形成有效回路。请检查导线连接与开关状态，确保灯泡两端分别与电源正负极连通 ❌";
                 } else {
-                    hintDiv.innerHTML = "✨ 单击电路元件放置在房间的合适位置，长按2秒拖拽移动，短按选中/开关切换 ✨";
+                    hintDiv.innerHTML = "✨ 短按=点击/选中/开关切换 | 长按2秒=拖拽移动元件/家具 ✨";
                 }
                 ledDot.style.backgroundColor = "#e67e22";
             }
@@ -723,19 +713,13 @@
             }
         }
 
-        // ---------- 触摸/鼠标共用坐标转换 ----------
+        // ---------- 触摸坐标转换 ----------
         function getCanvasCoords(e) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-            let clientX, clientY;
-            if (e.touches) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            } else {
-                clientX = e.clientX;
-                clientY = e.clientY;
-            }
+            let clientX = e.touches[0].clientX;
+            let clientY = e.touches[0].clientY;
             let mx = (clientX - rect.left) * scaleX;
             let my = (clientY - rect.top) * scaleY;
             mx = Math.min(Math.max(mx, 0), width);
@@ -743,92 +727,7 @@
             return { mx, my };
         }
 
-        // 核心交互函数：短按点击处理（复用原鼠标逻辑）
-        function handleTap(mx, my) {
-            if (isWireMode) {
-                const hit = hitTestTerminal(mx, my);
-                if (hit) {
-                    if (selectedTerminalPin === null) {
-                        selectedTerminalPin = hit.pinId;
-                    } else {
-                        addWireByPins(selectedTerminalPin, hit.pinId);
-                        selectedTerminalPin = null;
-                        isWireMode = false;
-                        document.getElementById('wireToolBtn').classList.remove('active');
-                    }
-                } else {
-                    selectedTerminalPin = null;
-                }
-                drawAll();
-                return;
-            }
-            const hitComp = findComponentAt(mx, my);
-            if (hitComp) {
-                selectedCompId = hitComp.id;
-                if (hitComp.type === 'switch') {
-                    if (isSwitchToggleArea(hitComp, mx, my)) {
-                        hitComp.closed = !hitComp.closed;
-                        updateCircuit();
-                        return;
-                    }
-                }
-                drawAll();
-                return;
-            }
-            const hitWireObj = hitTestWire(mx, my);
-            if (hitWireObj) {
-                selectedWireId = (selectedWireId === hitWireObj.id) ? null : hitWireObj.id;
-                drawAll();
-                return;
-            }
-            selectedWireId = null;
-            selectedCompId = null;
-            drawAll();
-        }
-
-        // 长按后开始拖拽准备
-        function startLongPressDrag(target, mx, my) {
-            if (target.type === 'comp') {
-                draggedComp = target.comp;
-                dragOffsetX = draggedComp.x - mx;
-                dragOffsetY = draggedComp.y - my;
-                isDraggingComponent = true;
-                drawAll();
-            } else if (target.type === 'furniture') {
-                draggedFurniture = target.furniture;
-                dragFurOffsetX = draggedFurniture.x - mx;
-                dragFurOffsetY = draggedFurniture.y - my;
-                drawAll();
-            }
-        }
-
-        // 触摸移动拖拽更新
-        function updateDrag(mx, my) {
-            if (isDraggingComponent && draggedComp) {
-                draggedComp.x = Math.min(Math.max(mx + dragOffsetX, 45), width-45);
-                draggedComp.y = Math.min(Math.max(my + dragOffsetY, 45), height-45);
-                drawAll();
-                return true;
-            }
-            if (draggedFurniture) {
-                let newX = Math.min(Math.max(mx + dragFurOffsetX, 5), width - draggedFurniture.w - 5);
-                let newY = Math.min(Math.max(my + dragFurOffsetY, 5), height - draggedFurniture.h - 5);
-                draggedFurniture.x = newX;
-                draggedFurniture.y = newY;
-                drawAll();
-                return true;
-            }
-            return false;
-        }
-
-        // 重置拖拽状态
-        function cancelDrag() {
-            isDraggingComponent = false;
-            draggedComp = null;
-            draggedFurniture = null;
-        }
-
-        // ---------- 命中测试辅助 (复用原有) ----------
+        // ---------- 命中测试 (复用) ----------
         function hitTestTerminal(mx, my, radius=13) {
             for(let comp of components) {
                 for(let t=0; t<2; t++) {
@@ -925,50 +824,134 @@
             return null;
         }
 
-        // ---------- 触摸事件 ----------
-        function onTouchStart(e) {
-            e.preventDefault();
-            const { mx, my } = getCanvasCoords(e);
-            touchStartX = mx;
-            touchStartY = my;
-            // 先检查是否命中导线控制点（直接进入拖拽控制点模式）
-            const hitWp = hitTestWaypoint(mx, my);
-            if (hitWp) {
-                draggingWaypointIndex = hitWp;
-                selectedWireId = hitWp.wireId;
+        // 短按处理 (点击逻辑)
+        function handleTap(mx, my) {
+            if (isWireMode) {
+                const hit = hitTestTerminal(mx, my);
+                if (hit) {
+                    if (selectedTerminalPin === null) {
+                        selectedTerminalPin = hit.pinId;
+                    } else {
+                        addWireByPins(selectedTerminalPin, hit.pinId);
+                        selectedTerminalPin = null;
+                        isWireMode = false;
+                        document.getElementById('wireToolBtn').classList.remove('active');
+                    }
+                } else {
+                    selectedTerminalPin = null;
+                }
                 drawAll();
                 return;
             }
-            // 检查命中元件和家具
             const hitComp = findComponentAt(mx, my);
-            const hitFur = findFurnitureAt(mx, my);
             if (hitComp) {
-                pendingDragTarget = { type: 'comp', comp: hitComp };
-                // 记录是否是开关文字区（如果是文字区，长按不应拖拽）
+                selectedCompId = hitComp.id;
                 if (hitComp.type === 'switch' && isSwitchToggleArea(hitComp, mx, my)) {
-                    pendingSwitchComp = hitComp;
-                } else {
-                    pendingSwitchComp = null;
+                    hitComp.closed = !hitComp.closed;
+                    updateCircuit();
+                    return;
                 }
-            } else if (hitFur) {
-                pendingDragTarget = { type: 'furniture', furniture: hitFur };
-            } else {
-                pendingDragTarget = null;
+                drawAll();
+                return;
             }
-            // 启动长按定时器 (2秒)
-            longPressTimer = setTimeout(() => {
-                if (pendingDragTarget && !isLongPressing && !isWireMode) {
-                    // 导线模式下禁止拖拽
-                    isLongPressing = true;
-                    startLongPressDrag(pendingDragTarget, touchStartX, touchStartY);
+            const hitWireObj = hitTestWire(mx, my);
+            if (hitWireObj) {
+                selectedWireId = (selectedWireId === hitWireObj.id) ? null : hitWireObj.id;
+                drawAll();
+                return;
+            }
+            selectedWireId = null;
+            selectedCompId = null;
+            drawAll();
+        }
+
+        // 开始拖拽 (长按触发)
+        function startLongPressDrag(target, mx, my) {
+            if (target.type === 'comp') {
+                draggedComp = target.target;
+                dragOffsetX = draggedComp.x - mx;
+                dragOffsetY = draggedComp.y - my;
+                isDraggingComponent = true;
+                drawAll();
+            } else if (target.type === 'furniture') {
+                draggedFurniture = target.target;
+                dragFurOffsetX = draggedFurniture.x - mx;
+                dragFurOffsetY = draggedFurniture.y - my;
+                drawAll();
+            }
+        }
+
+        // 更新拖拽
+        function updateDrag(mx, my) {
+            if (isDraggingComponent && draggedComp) {
+                draggedComp.x = Math.min(Math.max(mx + dragOffsetX, 45), width-45);
+                draggedComp.y = Math.min(Math.max(my + dragOffsetY, 45), height-45);
+                drawAll();
+                return true;
+            }
+            if (draggedFurniture) {
+                let newX = Math.min(Math.max(mx + dragFurOffsetX, 5), width - draggedFurniture.w - 5);
+                let newY = Math.min(Math.max(my + dragFurOffsetY, 5), height - draggedFurniture.h - 5);
+                draggedFurniture.x = newX;
+                draggedFurniture.y = newY;
+                drawAll();
+                return true;
+            }
+            return false;
+        }
+
+        // 清除拖拽状态
+        function cancelDrag() {
+            isDraggingComponent = false;
+            draggedComp = null;
+            draggedFurniture = null;
+        }
+
+        // ---------- 触摸事件 ----------
+        function onTouchStart(e) {
+            e.preventDefault();
+            if (!touchActive) {
+                touchActive = true;
+                const { mx, my } = getCanvasCoords(e);
+                touchStartX = mx;
+                touchStartY = my;
+
+                // 优先检测导线控制点
+                const hitWp = hitTestWaypoint(mx, my);
+                if (hitWp) {
+                    draggingWaypointIndex = hitWp;
+                    selectedWireId = hitWp.wireId;
+                    drawAll();
+                    return;
                 }
-                longPressTimer = null;
-            }, 2000);
+
+                // 检测拖拽目标 (元件或家具)
+                const hitComp = findComponentAt(mx, my);
+                const hitFur = findFurnitureAt(mx, my);
+                if (hitComp) {
+                    pendingDragTarget = { type: 'comp', target: hitComp };
+                } else if (hitFur) {
+                    pendingDragTarget = { type: 'furniture', target: hitFur };
+                } else {
+                    pendingDragTarget = null;
+                }
+
+                // 启动长按定时器 (2秒)
+                longPressTimer = setTimeout(() => {
+                    if (pendingDragTarget && !isLongPressing && !isWireMode) {
+                        isLongPressing = true;
+                        startLongPressDrag(pendingDragTarget, touchStartX, touchStartY);
+                    }
+                    longPressTimer = null;
+                }, 2000);
+            }
         }
 
         function onTouchMove(e) {
-            if (draggingWaypointIndex) {
-                e.preventDefault();
+            e.preventDefault();
+            if (!touchActive) return;
+
+            if (draggingWaypointIndex !== null) {
                 const { mx, my } = getCanvasCoords(e);
                 const wire = wires.find(w => w.id === draggingWaypointIndex.wireId);
                 if (wire && wire.waypoints && wire.waypoints[draggingWaypointIndex.pointIndex]) {
@@ -977,18 +960,19 @@
                 }
                 return;
             }
+
             if (isDraggingComponent || draggedFurniture) {
-                e.preventDefault();
                 const { mx, my } = getCanvasCoords(e);
                 updateDrag(mx, my);
                 return;
             }
-            // 移动超过阈值取消长按
+
+            // 未拖拽时，移动超过阈值则取消长按
             if (longPressTimer && pendingDragTarget) {
                 const { mx, my } = getCanvasCoords(e);
                 const dx = mx - touchStartX;
                 const dy = my - touchStartY;
-                if (Math.hypot(dx, dy) > 10) {
+                if (Math.hypot(dx, dy) > 15) {
                     clearTimeout(longPressTimer);
                     longPressTimer = null;
                     pendingDragTarget = null;
@@ -998,13 +982,15 @@
 
         function onTouchEnd(e) {
             e.preventDefault();
-            if (draggingWaypointIndex) {
+            touchActive = false;
+
+            if (draggingWaypointIndex !== null) {
                 draggingWaypointIndex = null;
                 drawAll();
                 return;
             }
+
             if (isDraggingComponent || draggedFurniture) {
-                // 拖拽结束，更新电路（元件移动后电路连接不变但位置变了，不需要更新电路，只需重绘）
                 cancelDrag();
                 drawAll();
                 if (longPressTimer) clearTimeout(longPressTimer);
@@ -1013,6 +999,7 @@
                 isLongPressing = false;
                 return;
             }
+
             if (longPressTimer) {
                 // 未触发长按，执行短按点击
                 clearTimeout(longPressTimer);
@@ -1027,92 +1014,24 @@
         }
 
         function onTouchCancel(e) {
+            e.preventDefault();
+            touchActive = false;
             clearTimeout(longPressTimer);
             cancelDrag();
             draggingWaypointIndex = null;
             pendingDragTarget = null;
             isLongPressing = false;
+            drawAll();
         }
 
-        // 鼠标事件保留 (用于PC)
-        function onMouseDown(e) {
-            const { mx, my } = getCanvasCoords(e);
-            const hitWp = hitTestWaypoint(mx, my);
-            if (hitWp) { draggingWaypointIndex = hitWp; selectedWireId = hitWp.wireId; drawAll(); return; }
-            if (isWireMode) {
-                const hit = hitTestTerminal(mx, my);
-                if (hit) {
-                    if (selectedTerminalPin === null) selectedTerminalPin = hit.pinId;
-                    else { addWireByPins(selectedTerminalPin, hit.pinId); selectedTerminalPin = null; isWireMode = false; document.getElementById('wireToolBtn').classList.remove('active'); }
-                } else selectedTerminalPin = null;
-                drawAll();
-                return;
-            }
-            const hitComp = findComponentAt(mx, my);
-            if (hitComp) {
-                selectedCompId = hitComp.id;
-                if (hitComp.type === 'switch' && isSwitchToggleArea(hitComp, mx, my)) {
-                    hitComp.closed = !hitComp.closed;
-                    updateCircuit();
-                    return;
-                } else {
-                    draggedComp = hitComp;
-                    dragOffsetX = hitComp.x - mx;
-                    dragOffsetY = hitComp.y - my;
-                    isDraggingComponent = true;
-                    drawAll();
-                }
-                return;
-            }
-            const hitFur = findFurnitureAt(mx, my);
-            if (hitFur) {
-                draggedFurniture = hitFur;
-                dragFurOffsetX = hitFur.x - mx;
-                dragFurOffsetY = hitFur.y - my;
-                selectedCompId = null;
-                drawAll();
-                return;
-            }
-            const hitWire = hitTestWire(mx, my);
-            if (hitWire) { selectedWireId = (selectedWireId === hitWire.id) ? null : hitWire.id; drawAll(); return; }
-            selectedWireId = null; selectedCompId = null; drawAll();
-        }
-        function onMouseMove(e) {
-            if (draggingWaypointIndex) {
-                const { mx, my } = getCanvasCoords(e);
-                const wire = wires.find(w => w.id === draggingWaypointIndex.wireId);
-                if (wire && wire.waypoints && wire.waypoints[draggingWaypointIndex.pointIndex]) {
-                    wire.waypoints[draggingWaypointIndex.pointIndex] = { x: mx, y: my };
-                    drawAll();
-                }
-                return;
-            }
-            if (isDraggingComponent && draggedComp) {
-                const { mx, my } = getCanvasCoords(e);
-                draggedComp.x = Math.min(Math.max(mx + dragOffsetX, 45), width-45);
-                draggedComp.y = Math.min(Math.max(my + dragOffsetY, 45), height-45);
-                drawAll();
-                return;
-            }
-            if (draggedFurniture) {
-                const { mx, my } = getCanvasCoords(e);
-                let newX = Math.min(Math.max(mx + dragFurOffsetX, 5), width - draggedFurniture.w - 5);
-                let newY = Math.min(Math.max(my + dragFurOffsetY, 5), height - draggedFurniture.h - 5);
-                draggedFurniture.x = newX;
-                draggedFurniture.y = newY;
-                drawAll();
-            }
-        }
-        function onMouseUp(e) {
-            if (draggingWaypointIndex) { draggingWaypointIndex = null; drawAll(); return; }
-            isDraggingComponent = false;
-            draggedComp = null;
-            draggedFurniture = null;
-        }
-        function onDoubleClick(e) {
+        // 双击事件用于导线拐点
+        function onDoubleTap(e) {
+            e.preventDefault();
             const { mx, my } = getCanvasCoords(e);
             const wire = hitTestWire(mx, my);
-            if (wire) { addWaypointToWire(wire, mx, my); e.preventDefault(); }
+            if (wire) {
+                addWaypointToWire(wire, mx, my);
+            }
         }
 
         // 元件库和按钮逻辑
@@ -1129,7 +1048,18 @@
             });
             canvas.addEventListener('click', (e) => {
                 if(pendingAddType) {
-                    const { mx, my } = getCanvasCoords(e);
+                    const rect = canvas.getBoundingClientRect();
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+                    // 注意：click事件的坐标获取需要兼容触摸，但这里只是元件放置，可用鼠标坐标或触摸坐标
+                    let clientX = e.clientX;
+                    let clientY = e.clientY;
+                    if (e.touches) {
+                        clientX = e.touches[0].clientX;
+                        clientY = e.touches[0].clientY;
+                    }
+                    let mx = (clientX - rect.left) * scaleX;
+                    let my = (clientY - rect.top) * scaleY;
                     addComponent(pendingAddType, mx, my);
                     pendingAddType = null;
                 }
@@ -1155,10 +1085,10 @@
             });
             document.getElementById('resetRoomBtn').addEventListener('click', () => {
                 furnitures = [
-                    { id: 'door', name: '🚪 门', x: width-115, y: 200, w: 105, h: 180, text: '门' },
+                    { id: 'door', name: '🚪 门', x: width-115, y: 200, w: 105, h: 180, text: '🚪门' },
                     { id: 'window', name: '🪟 窗户', x: 60, y: 30, w: 150, h: 120, text: '窗户' },
-                    { id: 'bed', name: '🛏️ 床', x: 680, y: 420, w: 210, h: 150, text: '床' },
-                    { id: 'desk', name: '📚 书桌', x: 30, y: 450, w: 180, h: 120, text: '书桌' }
+                    { id: 'bed', name: '🛏️ 床', x: 680, y: 420, w: 300, h: 150, text: '🛏️床' },
+                    { id: 'desk', name: '📚 书桌', x: 30, y: 450, w: 180, h: 120, text: '📚书桌' }
                 ];
                 drawAll();
             });
@@ -1168,16 +1098,12 @@
         function init() {
             setupLibrary();
             bindTools();
-            // 触摸事件
             canvas.addEventListener('touchstart', onTouchStart, { passive: false });
             canvas.addEventListener('touchmove', onTouchMove, { passive: false });
             canvas.addEventListener('touchend', onTouchEnd);
             canvas.addEventListener('touchcancel', onTouchCancel);
-            // 鼠标事件
-            canvas.addEventListener('mousedown', onMouseDown);
-            canvas.addEventListener('mousemove', onMouseMove);
-            canvas.addEventListener('mouseup', onMouseUp);
-            canvas.addEventListener('dblclick', onDoubleClick);
+            // 双击检测 (利用 touchend 计数简单实现，这里使用 dblclick 事件在触摸屏上也会触发)
+            canvas.addEventListener('dblclick', onDoubleTap);
             updateCircuit();
         }
 
