@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>模拟安装照明电路</title>
+    <style>
+        * {
+            user-select: none;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Poppins', 'Roboto', sans-serif;
+            background: #2b3b4e;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .app-container {
+            width: 1300px;
+            max-width: 98vw;
+            background: #f0ede8;
+            border-radius: 2rem;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .task-requirements {
+            background: #2c3e2f;
+            color: #f9f3cf;
+            padding: 12px 20px;
+            border-bottom: 3px solid #ffb347;
+            font-size: 0.9rem;
+        }
+        .task-requirements h4 {
+            margin: 0 0 6px 0;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .task-requirements ul {
+            margin: 0;
+            padding-left: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            list-style: none;
+        }
+        .task-requirements li {
+            font-size: 0.85rem;
+            background: #1e2a1e;
+            padding: 2px 12px;
+            border-radius: 20px;
+        }
+
+        .hint-area {
+            background: #1e2a32;
+            color: #f5f9ff;
+            padding: 10px 24px;
+            font-size: 1rem;
+            font-weight: 500;
+            border-bottom: 1px solid #ffb347;
+            text-align: center;
+        }
+        .hint-text {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .status-led {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: #ffaa44;
+            display: inline-block;
+        }
+
+        .workspace {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        .design-area {
+            flex: 3;
+            min-width: 550px;
+            background: #d9cdb0;
+            position: relative;
+            border-right: 2px solid #bcae7c;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+        .canvas-wrapper {
+            background: #e2d5b6;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: inset 0 0 0 2px #fef0cf;
+        }
+        canvas {
+            display: block;
+            background: #fdf8ed;
+            cursor: crosshair;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .components-bar {
+            flex: 1;
+            min-width: 170px;
+            background: #f4efdf;
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-left: 2px solid #ddd0ae;
+        }
+        .comp-title {
+            font-weight: bold;
+            text-align: center;
+            font-size: 1.2rem;
+            color: #5a3e2b;
+            border-bottom: 2px solid #cfbc8f;
+            padding-bottom: 8px;
+        }
+        .component-list {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .comp-item {
+            background: #fff8ed;
+            border-radius: 28px;
+            padding: 12px 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: grab;
+            transition: 0.2s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e2cf9e;
+        }
+        .comp-item:active { cursor: grabbing; }
+        .comp-item:hover { background: #fff3e0; transform: scale(1.02); }
+        .comp-icon { width: 64px; height: 64px; background: #efe3ce; border-radius: 40px; display: flex; align-items: center; justify-content: center; font-size: 2.3rem; }
+        .comp-name { font-size: 0.85rem; font-weight: 600; color: #5a3e2b; }
+
+        .toolbar {
+            padding: 12px 20px;
+            background: #e8dfcc;
+            display: flex;
+            gap: 18px;
+            border-top: 1px solid #cfbc8f;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .tool-btn {
+            background: #3c5a6f;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .tool-btn.active { background: #f39c12; box-shadow: 0 0 0 2px #ffe0a3; color: #2c2b26; }
+        .tool-btn:hover { background: #1f3e4c; transform: scale(0.97); }
+
+        .instructions {
+            background: #cfbc8f;
+            color: #2c2e2a;
+            padding: 10px 20px;
+            font-size: 0.85rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 24px;
+            border-top: 2px solid #b59a5e;
+        }
+        .instructions span {
+            background: #fef0cf;
+            padding: 4px 12px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        @media (max-width: 780px) { .workspace { flex-direction: column; } .design-area { min-width: auto; } }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="task-requirements">
+        <h4>📋 任务要求</h4>
+        <ul>
+            <li>🔋 房间只有一个电源，需要安装两盏灯</li>
+            <li>🔘 两个开关分别控制两盏灯</li>
+            <li>💡 灯泡和开关布局合理</li>
+            <li>📐 房间内电路清晰稳固整洁</li>
+        </ul>
+    </div>
+
+    <div class="hint-area">
+        <div class="hint-text">
+            <span>💡 提示栏</span>
+            <span id="hintMessage">✨ 单击电路元件放置在房间的合适位置，拖放元件并用导线连接，闭合开关进行测试</span>
+            <div class="status-led" id="hintLed"></div>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="design-area">
+            <div class="canvas-wrapper">
+                <canvas id="circuitCanvas" width="950" height="580" style="width:100%; height:auto;"></canvas>
+            </div>
+        </div>
+        <div class="components-bar">
+            <div class="comp-title">⚡ 电路元件库</div>
+            <div class="component-list">
+                <div class="comp-item" data-type="bulb"><div class="comp-icon">💡</div><div class="comp-name">小灯泡</div></div>
+                <div class="comp-item" data-type="battery"><div class="comp-icon">🔋</div><div class="comp-name">电池/电源 (限1个)</div></div>
+                <div class="comp-item" data-type="switch"><div class="comp-icon">🔘</div><div class="comp-name">开关</div></div>
+                <div class="comp-item" id="wireToolBtn" style="cursor: pointer;"><div class="comp-icon">〰️</div><div class="comp-name">导线 (连接)</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <button class="tool-btn" id="clearSelectedBtn">🗑️ 清除所选电路元件</button>
+        <button class="tool-btn" id="resetRoomBtn">🏠 重置家具位置</button>
+        <button class="tool-btn" id="clearAllWiresBtn">⚡ 清空所有导线</button>
+    </div>
+
+    <div class="instructions">
+        <span>🪑 可拖拽家具：门窗/床/桌 直接拖拽移动</span>
+        <span>💡 双击导线增加直角控制点，拖拽圆点改变走向</span>
+        <span>🔘 单击开关文字区闭合/断开，拖拽空白处移动</span>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ----- 1. 并查集 (管理所有引脚) -----
+        class UnionFind {
+            constructor() {
+                this.parent = new Map();
+                this.rank = new Map();
+            }
+            add(pinId) {
+                if (!this.parent.has(pinId)) {
+                    this.parent.set(pinId, pinId);
+                    this.rank.set(pinId, 0);
+                }
+            }
+            find(pinId) {
+                if (!this.parent.has(pinId)) return pinId;
+                if (this.parent.get(pinId) !== pinId) {
+                    this.parent.set(pinId, this.find(this.parent.get(pinId)));
+                }
+                return this.parent.get(pinId);
+            }
+            union(pinA, pinB) {
+                let rootA = this.find(pinA);
+                let rootB = this.find(pinB);
+                if (rootA === rootB) return;
+                let rankA = this.rank.get(rootA);
+                let rankB = this.rank.get(rootB);
+                if (rankA < rankB) {
+                    this.parent.set(rootA, rootB);
+                } else if (rankA > rankB) {
+                    this.parent.set(rootB, rootA);
+                } else {
+                    this.parent.set(rootB, rootA);
+                    this.rank.set(rootA, rankA + 1);
+                }
+            }
+            getSets() {
+                const map = new Map();
+                for (let [pin, parent] of this.parent.entries()) {
+                    const root = this.find(pin);
+                    if (!map.has(root)) map.set(root, new Set());
+                    map.get(root).add(pin);
+                }
+                return map;
+            }
+            getNodeId(pinId) {
+                return this.find(pinId);
+            }
+        }
+
+        // ----- 全局变量 -----
+        const canvas = document.getElementById('circuitCanvas');
+        const ctx = canvas.getContext('2d');
+        let width = 950, height = 580;
+        canvas.width = width;
+        canvas.height = height;
+
+        let components = [];
+        let wires = [];
+        let nextCompId = 100;
+        let nextWireId = 200;
+        let nextPinId = 1000;
+
+        let furnitures = [
+            { id: 'door', name: '🚪 门', x: width-115, y: 200, w: 105, h: 180, text: '门' },
+            { id: 'window', name: '🪟 窗户', x: 60, y: 30, w: 150, h: 120, text: '窗户' },
+            { id: 'bed', name: '🛏️ 床', x: 680, y: 420, w: 210, h: 150, text: '床' },
+            { id: 'desk', name: '📚 书桌', x: 30, y: 450, w: 180, h: 120, text: '书桌' }
+        ];
+
+        let uf = new UnionFind();
+
+        let isWireMode = false;
+        let selectedTerminalPin = null;
+        let draggedComp = null;
+        let dragOffsetX = 0, dragOffsetY = 0;
+        let isDraggingComponent = false;
+        let draggedFurniture = null;
+        let dragFurOffsetX = 0, dragFurOffsetY = 0;
+
+        let selectedWireId = null;
+        let draggingWaypointIndex = null;
+        let selectedCompId = null;
+        let pendingAddType = null;
+
+        function generatePinId() { return nextPinId++; }
+
+        function initComponentPins(comp) {
+            comp.pin0 = generatePinId();
+            comp.pin1 = generatePinId();
+            uf.add(comp.pin0);
+            uf.add(comp.pin1);
+        }
+
+        function getTerminalCoords(comp, terminalIdx) {
+            const w = 70, h = 70;
+            const cx = comp.x, cy = comp.y;
+            if(terminalIdx === 0) return { x: cx - w/2 + 5, y: cy };
+            else return { x: cx + w/2 - 5, y: cy };
+        }
+
+        function getComponentAndTerminalByPin(pinId) {
+            for (let comp of components) {
+                if (comp.pin0 === pinId) return { comp, terminalIdx: 0 };
+                if (comp.pin1 === pinId) return { comp, terminalIdx: 1 };
+            }
+            return null;
+        }
+
+        function updateCircuit() {
+            const pinToNode = new Map();
+            const nodeToPins = new Map();
+            const sets = uf.getSets();
+            for (let [root, pinSet] of sets.entries()) {
+                const nodeId = root;
+                nodeToPins.set(nodeId, pinSet);
+                for (let pin of pinSet) {
+                    pinToNode.set(pin, nodeId);
+                }
+            }
+
+            const battery = components.find(c => c.type === 'battery');
+            if (!battery) {
+                components.forEach(c => { if(c.type === 'bulb') c.isLit = false; });
+                drawAll();
+                updateHintMessage(false, false);
+                return;
+            }
+            const plusNode = pinToNode.get(battery.pin0);
+            const minusNode = pinToNode.get(battery.pin1);
+            if (!plusNode || !minusNode) {
+                components.forEach(c => { if(c.type === 'bulb') c.isLit = false; });
+                drawAll();
+                updateHintMessage(false, false);
+                return;
+            }
+
+            const graph = new Map();
+            function addGraphEdge(u, v) {
+                if (u === v) return;
+                if (!graph.has(u)) graph.set(u, new Set());
+                if (!graph.has(v)) graph.set(v, new Set());
+                graph.get(u).add(v);
+                graph.get(v).add(u);
+            }
+            for (let comp of components) {
+                if (comp.type === 'switch' && comp.closed === true) {
+                    const nodeA = pinToNode.get(comp.pin0);
+                    const nodeB = pinToNode.get(comp.pin1);
+                    if (nodeA && nodeB && nodeA !== nodeB) {
+                        addGraphEdge(nodeA, nodeB);
+                    }
+                }
+            }
+
+            function bfsReachable(startNode) {
+                if (!graph.has(startNode) && startNode !== plusNode && startNode !== minusNode) {
+                    return new Set([startNode]);
+                }
+                const visited = new Set();
+                const queue = [startNode];
+                visited.add(startNode);
+                while (queue.length) {
+                    const cur = queue.shift();
+                    const neighbors = graph.get(cur) || new Set();
+                    for (let nb of neighbors) {
+                        if (!visited.has(nb)) {
+                            visited.add(nb);
+                            queue.push(nb);
+                        }
+                    }
+                }
+                return visited;
+            }
+
+            const reachablePlus = bfsReachable(plusNode);
+            const reachableMinus = bfsReachable(minusNode);
+
+            let isShortCircuit = false;
+            for (let node of reachablePlus) {
+                if (reachableMinus.has(node)) {
+                    isShortCircuit = true;
+                    break;
+                }
+            }
+
+            if (isShortCircuit) {
+                components.forEach(c => { if(c.type === 'bulb') c.isLit = false; });
+                drawAll();
+                updateHintMessage(true, true);
+                return;
+            }
+
+            for (let bulb of components) {
+                if (bulb.type !== 'bulb') continue;
+                const nodeA = pinToNode.get(bulb.pin0);
+                const nodeB = pinToNode.get(bulb.pin1);
+                if (!nodeA || !nodeB) {
+                    bulb.isLit = false;
+                    continue;
+                }
+                const aInPlus = reachablePlus.has(nodeA);
+                const aInMinus = reachableMinus.has(nodeA);
+                const bInPlus = reachablePlus.has(nodeB);
+                const bInMinus = reachableMinus.has(nodeB);
+                if ((aInPlus && bInMinus) || (aInMinus && bInPlus)) {
+                    bulb.isLit = true;
+                } else {
+                    bulb.isLit = false;
+                }
+            }
+
+            drawAll();
+            updateHintMessage(false, isShortCircuit);
+        }
+
+        function updateHintMessage(isShort, shortFlag) {
+            const hintDiv = document.getElementById('hintMessage');
+            const ledDot = document.getElementById('hintLed');
+            if (shortFlag) {
+                hintDiv.innerHTML = "⚠️ 电路短路！电源正负极直接导通，所有灯泡不亮。请移除短路导线 ⚠️";
+                ledDot.style.backgroundColor = "#e74c3c";
+                return;
+            }
+            const anyLit = components.some(c => c.type === 'bulb' && c.isLit);
+            if (anyLit) {
+                hintDiv.innerHTML = "✅ 电路正常！并联独立控制生效：闭合对应开关，相应灯泡亮起 ✅";
+                ledDot.style.backgroundColor = "#2ecc71";
+            } else {
+                const hasBattery = components.some(c => c.type === 'battery');
+                if (hasBattery && components.some(c => c.type === 'bulb')) {
+                    hintDiv.innerHTML = "❌ 未形成有效回路。请检查导线连接与开关状态，确保灯泡两端分别与电源正负极连通 ❌";
+                } else {
+                    hintDiv.innerHTML = "✨ 单击电路元件放置在房间的合适位置，拖放元件并用导线连接，闭合开关进行测试 ✨";
+                }
+                ledDot.style.backgroundColor = "#e67e22";
+            }
+        }
+
+        function addWireByPins(pinA, pinB) {
+            if (pinA === pinB) return false;
+            const exist = wires.some(w => 
+                (w.fromPinId === pinA && w.toPinId === pinB) ||
+                (w.fromPinId === pinB && w.toPinId === pinA)
+            );
+            if (exist) return false;
+            uf.union(pinA, pinB);
+            wires.push({
+                id: nextWireId++,
+                fromPinId: pinA,
+                toPinId: pinB,
+                waypoints: []
+            });
+            updateCircuit();
+            return true;
+        }
+
+        function rebuildUnionFind() {
+            uf = new UnionFind();
+            for (let comp of components) {
+                uf.add(comp.pin0);
+                uf.add(comp.pin1);
+            }
+            for (let wire of wires) {
+                uf.union(wire.fromPinId, wire.toPinId);
+            }
+        }
+
+        function deleteComponent(compId) {
+            const idx = components.findIndex(c => c.id === compId);
+            if (idx === -1) return;
+            const comp = components[idx];
+            wires = wires.filter(w => w.fromPinId !== comp.pin0 && w.fromPinId !== comp.pin1 && w.toPinId !== comp.pin0 && w.toPinId !== comp.pin1);
+            components.splice(idx, 1);
+            rebuildUnionFind();
+            updateCircuit();
+        }
+
+        function clearAllWires() {
+            wires = [];
+            rebuildUnionFind();
+            updateCircuit();
+            document.getElementById('hintMessage').innerHTML = "🧹 所有导线已清除";
+        }
+
+        function addComponent(type, x, y) {
+            if (type === 'battery' && components.some(c => c.type === 'battery')) {
+                document.getElementById('hintMessage').innerHTML = "⚠️ 房间只能有一个电源！请勿重复添加电池 ⚠️";
+                return false;
+            }
+            const newComp = { id: nextCompId++, type: type, x: x, y: y };
+            if (type === 'switch') newComp.closed = false;
+            if (type === 'bulb') newComp.isLit = false;
+            initComponentPins(newComp);
+            components.push(newComp);
+            rebuildUnionFind();
+            updateCircuit();
+            return true;
+        }
+
+        // 绘图函数
+        function drawFurniture(f) {
+            ctx.save();
+            ctx.fillStyle = "#c9b07e";
+            ctx.fillRect(f.x, f.y, f.w, f.h);
+            ctx.fillStyle = "#f7e9c3";
+            ctx.fillRect(f.x+5, f.y+5, f.w-10, f.h-10);
+            ctx.fillStyle = "#5a3a22";
+            ctx.font = "bold 18px 'Segoe UI'";
+            ctx.fillText(f.text, f.x + f.w/2 - 18, f.y + f.h/2 + 8);
+            if(f.id === 'door') {
+                ctx.fillStyle = "#aa7a42";
+                ctx.beginPath();
+                ctx.arc(f.x+f.w-22, f.y+f.h/2, 8, 0, 2*Math.PI);
+                ctx.fill();
+            } else if(f.id === 'window') {
+                ctx.fillStyle = "#aad0f0";
+                ctx.fillRect(f.x+15, f.y+15, f.w-30, f.h-30);
+                ctx.fillStyle = "#7c5f3a";
+                ctx.fillRect(f.x+f.w/2-6, f.y+15, 10, f.h-30);
+                ctx.fillRect(f.x+15, f.y+f.h/2-6, f.w-30, 10);
+            }
+            ctx.restore();
+        }
+
+        function drawRoomBackground() {
+            ctx.fillStyle = "#faf0da";
+            ctx.fillRect(0, 0, width, height);
+            ctx.strokeStyle = "#e2cf9e";
+            ctx.lineWidth = 1;
+            for(let i = 0; i < width; i += 40){
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(width,i); ctx.stroke();
+            }
+            furnitures.forEach(f => drawFurniture(f));
+        }
+
+        function drawComponent(comp) {
+            const x = comp.x, y = comp.y;
+            const w = 70, h = 70;
+            ctx.save();
+            ctx.fillStyle = "#fef3db";
+            ctx.beginPath();
+            ctx.roundRect(x - w/2, y - h/2, w, h, 12);
+            ctx.fill();
+            ctx.strokeStyle = "#b87c4f";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            if(selectedCompId === comp.id) {
+                ctx.beginPath();
+                ctx.roundRect(x - w/2 - 3, y - h/2 - 3, w+6, h+6, 14);
+                ctx.strokeStyle = "#e34234";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+            if(comp.type === 'bulb') {
+                const isLit = comp.isLit || false;
+                ctx.fillStyle = isLit ? "#FFE484" : "#cbc2a7";
+                ctx.beginPath();
+                ctx.arc(x, y-5, 22, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = "#8b5a2b";
+                ctx.font = "28px sans-serif";
+                ctx.fillText("💡", x-14, y+6);
+            } else if(comp.type === 'battery') {
+                ctx.fillStyle = "#b3d9a0";
+                ctx.fillRect(x-20, y-15, 40, 30);
+                ctx.fillStyle = "#2c5e2a";
+                ctx.font = "bold 24px sans-serif";
+                ctx.fillText("🔋", x-14, y+10);
+                ctx.fillStyle = "#124010";
+                ctx.fillText("+", x-28, y-8);
+                ctx.fillText("-", x+20, y-8);
+            } else if(comp.type === 'switch') {
+                const closed = comp.closed === true;
+                ctx.fillStyle = "#dfcba4";
+                ctx.fillRect(x-20, y-12, 40, 24);
+                ctx.beginPath();
+                if(closed) {
+                    ctx.moveTo(x-15, y);
+                    ctx.lineTo(x+15, y);
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = "#27ae60";
+                    ctx.stroke();
+                    ctx.fillStyle = "#2c6e2f";
+                    ctx.fillText("闭合", x-12, y+6);
+                } else {
+                    ctx.moveTo(x-15, y-6);
+                    ctx.lineTo(x+15, y+6);
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = "#c0392b";
+                    ctx.stroke();
+                    ctx.fillStyle = "#b84c2c";
+                    ctx.fillText("断开", x-12, y+6);
+                }
+            }
+            for(let i=0;i<2;i++){
+                const tp = getTerminalCoords(comp, i);
+                ctx.beginPath();
+                ctx.arc(tp.x, tp.y, 6, 0, 2*Math.PI);
+                ctx.fillStyle = "#f5cb5c";
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(tp.x, tp.y, 3, 0, 2*Math.PI);
+                ctx.fillStyle = "#2c3e50";
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawWires() {
+            for(let wire of wires) {
+                const infoA = getComponentAndTerminalByPin(wire.fromPinId);
+                const infoB = getComponentAndTerminalByPin(wire.toPinId);
+                if(!infoA || !infoB) continue;
+                const start = getTerminalCoords(infoA.comp, infoA.terminalIdx);
+                const end = getTerminalCoords(infoB.comp, infoB.terminalIdx);
+                ctx.beginPath();
+                ctx.moveTo(start.x, start.y);
+                if(wire.waypoints && wire.waypoints.length > 0) {
+                    for(let wp of wire.waypoints) ctx.lineTo(wp.x, wp.y);
+                }
+                ctx.lineTo(end.x, end.y);
+                ctx.strokeStyle = "#ba8b4a";
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                if(selectedWireId === wire.id && wire.waypoints) {
+                    for(let idx=0; idx<wire.waypoints.length; idx++) {
+                        const p = wire.waypoints[idx];
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 8, 0, 2*Math.PI);
+                        ctx.fillStyle = "#f39c12";
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 4, 0, 2*Math.PI);
+                        ctx.fillStyle = "#fff";
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function drawAll() {
+            drawRoomBackground();
+            drawWires();
+            for(let comp of components) drawComponent(comp);
+            if(isWireMode && selectedTerminalPin) {
+                const info = getComponentAndTerminalByPin(selectedTerminalPin);
+                if(info) {
+                    const pos = getTerminalCoords(info.comp, info.terminalIdx);
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 14, 0, 2*Math.PI);
+                    ctx.fillStyle = "#f0b27a";
+                    ctx.fill();
+                }
+            }
+        }
+
+        // 交互辅助函数
+        function hitTestTerminal(mx, my, radius=13) {
+            for(let comp of components) {
+                for(let t=0; t<2; t++) {
+                    const coord = getTerminalCoords(comp, t);
+                    if(Math.hypot(coord.x-mx, coord.y-my) <= radius) {
+                        const pinId = (t===0) ? comp.pin0 : comp.pin1;
+                        return { pinId, comp, terminalIdx: t };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function findComponentAt(mx, my) {
+            for(let comp of components){
+                const half=35;
+                if(Math.abs(comp.x-mx)<=half && Math.abs(comp.y-my)<=half) return comp;
+            }
+            return null;
+        }
+
+        function findFurnitureAt(mx, my) {
+            for(let f of furnitures){
+                if(mx>=f.x && mx<=f.x+f.w && my>=f.y && my<=f.y+f.h) return f;
+            }
+            return null;
+        }
+
+        function isSwitchToggleArea(comp, mx, my) {
+            if(comp.type !== 'switch') return false;
+            const x = comp.x, y = comp.y;
+            return (mx >= x-25 && mx <= x+25 && my >= y-8 && my <= y+18);
+        }
+
+        function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+            const ax = px - x1, ay = py - y1;
+            const bx = x2 - x1, by = y2 - y1;
+            const dot = ax * bx + ay * by;
+            const len2 = bx * bx + by * by;
+            if(len2 === 0) return Math.hypot(ax, ay);
+            let t = dot / len2;
+            t = Math.max(0, Math.min(1, t));
+            const projX = x1 + t * bx;
+            const projY = y1 + t * by;
+            return Math.hypot(px - projX, py - projY);
+        }
+
+        function hitTestWire(mx, my) {
+            for(let wire of wires) {
+                const infoA = getComponentAndTerminalByPin(wire.fromPinId);
+                const infoB = getComponentAndTerminalByPin(wire.toPinId);
+                if(!infoA || !infoB) continue;
+                const start = getTerminalCoords(infoA.comp, infoA.terminalIdx);
+                const end = getTerminalCoords(infoB.comp, infoB.terminalIdx);
+                let points = [start];
+                if(wire.waypoints && wire.waypoints.length) points.push(...wire.waypoints);
+                points.push(end);
+                for(let i=0; i<points.length-1; i++) {
+                    const p1=points[i], p2=points[i+1];
+                    const dist = pointToSegmentDistance(mx, my, p1.x, p1.y, p2.x, p2.y);
+                    if(dist < 12) return wire;
+                }
+            }
+            return null;
+        }
+
+        function addWaypointToWire(wire, mx, my) {
+            if(!wire.waypoints) wire.waypoints = [];
+            const infoA = getComponentAndTerminalByPin(wire.fromPinId);
+            const infoB = getComponentAndTerminalByPin(wire.toPinId);
+            if(!infoA || !infoB) return;
+            const start = getTerminalCoords(infoA.comp, infoA.terminalIdx);
+            const end = getTerminalCoords(infoB.comp, infoB.terminalIdx);
+            let points = [start];
+            if(wire.waypoints.length) points.push(...wire.waypoints);
+            points.push(end);
+            let bestIdx = -1, bestDist = Infinity;
+            for(let i=0; i<points.length-1; i++) {
+                const p1=points[i], p2=points[i+1];
+                const dist = pointToSegmentDistance(mx, my, p1.x, p1.y, p2.x, p2.y);
+                if(dist < bestDist && dist < 20) { bestDist = dist; bestIdx = i; }
+            }
+            if(bestIdx !== -1) {
+                const p1=points[bestIdx], p2=points[bestIdx+1];
+                const newX = (p1.x + p2.x)/2;
+                const newY = (p1.y + p2.y)/2;
+                wire.waypoints.splice(bestIdx, 0, { x: newX, y: newY });
+                drawAll();
+            }
+        }
+
+        function hitTestWaypoint(mx, my) {
+            for(let wire of wires) {
+                if(wire.waypoints) {
+                    for(let idx=0; idx<wire.waypoints.length; idx++) {
+                        const p = wire.waypoints[idx];
+                        if(Math.hypot(mx-p.x, my-p.y) <= 10) return { wireId: wire.id, pointIndex: idx };
+                    }
+                }
+            }
+            return null;
+        }
+
+        // 事件处理
+        function handleMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let mx = (e.clientX - rect.left) * scaleX;
+            let my = (e.clientY - rect.top) * scaleY;
+            const hitWp = hitTestWaypoint(mx, my);
+            if(hitWp) { draggingWaypointIndex = hitWp; selectedWireId = hitWp.wireId; drawAll(); return; }
+            if(isWireMode) {
+                const hit = hitTestTerminal(mx, my);
+                if(hit) {
+                    if(selectedTerminalPin === null) {
+                        selectedTerminalPin = hit.pinId;
+                    } else {
+                        addWireByPins(selectedTerminalPin, hit.pinId);
+                        selectedTerminalPin = null;
+                        isWireMode = false;
+                        document.getElementById('wireToolBtn').classList.remove('active');
+                    }
+                } else {
+                    selectedTerminalPin = null;
+                }
+                drawAll();
+                return;
+            }
+            const hitComp = findComponentAt(mx, my);
+            if(hitComp) {
+                selectedCompId = hitComp.id;
+                if(hitComp.type === 'switch') {
+                    if(isSwitchToggleArea(hitComp, mx, my)) {
+                        hitComp.closed = !hitComp.closed;
+                        updateCircuit();
+                        return;
+                    } else {
+                        draggedComp = hitComp;
+                        dragOffsetX = hitComp.x - mx;
+                        dragOffsetY = hitComp.y - my;
+                        isDraggingComponent = true;
+                        drawAll();
+                        return;
+                    }
+                } else {
+                    draggedComp = hitComp;
+                    dragOffsetX = hitComp.x - mx;
+                    dragOffsetY = hitComp.y - my;
+                    isDraggingComponent = true;
+                    drawAll();
+                    return;
+                }
+            }
+            const hitFur = findFurnitureAt(mx, my);
+            if(hitFur) {
+                draggedFurniture = hitFur;
+                dragFurOffsetX = hitFur.x - mx;
+                dragFurOffsetY = hitFur.y - my;
+                selectedCompId = null;
+                drawAll();
+                return;
+            }
+            const hitWire = hitTestWire(mx, my);
+            if(hitWire) { selectedWireId = (selectedWireId === hitWire.id) ? null : hitWire.id; drawAll(); return; }
+            else { selectedWireId = null; selectedCompId = null; drawAll(); }
+        }
+
+        function handleMouseMove(e) {
+            if(draggedComp && isDraggingComponent) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                let mx = (e.clientX - rect.left) * scaleX;
+                let my = (e.clientY - rect.top) * scaleY;
+                draggedComp.x = Math.min(Math.max(mx + dragOffsetX, 45), width-45);
+                draggedComp.y = Math.min(Math.max(my + dragOffsetY, 45), height-45);
+                drawAll();
+                return;
+            }
+            if(draggedFurniture) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                let mx = (e.clientX - rect.left) * scaleX;
+                let my = (e.clientY - rect.top) * scaleY;
+                let newX = Math.min(Math.max(mx + dragFurOffsetX, 5), width - draggedFurniture.w - 5);
+                let newY = Math.min(Math.max(my + dragFurOffsetY, 5), height - draggedFurniture.h - 5);
+                draggedFurniture.x = newX;
+                draggedFurniture.y = newY;
+                drawAll();
+                return;
+            }
+            if(draggingWaypointIndex) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                let mx = (e.clientX - rect.left) * scaleX;
+                let my = (e.clientY - rect.top) * scaleY;
+                const wire = wires.find(w => w.id === draggingWaypointIndex.wireId);
+                if(wire && wire.waypoints && wire.waypoints[draggingWaypointIndex.pointIndex]) {
+                    wire.waypoints[draggingWaypointIndex.pointIndex] = { x: mx, y: my };
+                    drawAll();
+                }
+            }
+        }
+
+        function handleMouseUp(e) { isDraggingComponent = false; draggedComp = null; draggedFurniture = null; draggingWaypointIndex = null; }
+
+        function handleDoubleClick(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let mx = (e.clientX - rect.left) * scaleX;
+            let my = (e.clientY - rect.top) * scaleY;
+            const wire = hitTestWire(mx, my);
+            if(wire) { addWaypointToWire(wire, mx, my); e.preventDefault(); }
+        }
+
+        function setupLibrary() {
+            document.querySelectorAll('.comp-item[data-type]').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    pendingAddType = item.getAttribute('data-type');
+                    isWireMode = false;
+                    selectedTerminalPin = null;
+                    document.getElementById('wireToolBtn').classList.remove('active');
+                    document.getElementById('hintMessage').innerHTML = `👉 点击设计区放置${pendingAddType==='bulb'?'灯泡':pendingAddType==='battery'?'电源':'开关'}`;
+                });
+            });
+            canvas.addEventListener('click', (e) => {
+                if(pendingAddType) {
+                    const rect = canvas.getBoundingClientRect();
+                    const scaleX = canvas.width/rect.width;
+                    const scaleY = canvas.height/rect.height;
+                    let mx = (e.clientX - rect.left)*scaleX;
+                    let my = (e.clientY - rect.top)*scaleY;
+                    addComponent(pendingAddType, mx, my);
+                    pendingAddType = null;
+                }
+            });
+        }
+
+        function bindTools() {
+            const wireBtn = document.getElementById('wireToolBtn');
+            wireBtn.addEventListener('click', () => {
+                isWireMode = !isWireMode;
+                selectedTerminalPin = null;
+                if(isWireMode) { wireBtn.classList.add('active'); document.getElementById('hintMessage').innerHTML = "🔌 连线模式：依次点击两个元件的端子圆点"; }
+                else { wireBtn.classList.remove('active'); document.getElementById('hintMessage').innerHTML = "✏️ 退出连线模式"; }
+                drawAll();
+            });
+            document.getElementById('clearSelectedBtn').addEventListener('click', () => {
+                if(selectedCompId !== null) {
+                    deleteComponent(selectedCompId);
+                    selectedCompId = null;
+                } else {
+                    document.getElementById('hintMessage').innerHTML = "⚠️ 未选中任何元件，请先单击元件将其红框选中";
+                }
+            });
+            document.getElementById('resetRoomBtn').addEventListener('click', () => {
+                furnitures = [
+                    { id: 'door', name: '🚪 门', x: width-115, y: 200, w: 105, h: 180, text: '门' },
+                    { id: 'window', name: '🪟 窗户', x: 60, y: 30, w: 150, h: 120, text: '窗户' },
+                    { id: 'bed', name: '🛏️ 床', x: 680, y: 420, w: 210, h: 150, text: '床' },
+                    { id: 'desk', name: '📚 书桌', x: 30, y: 450, w: 180, h: 120, text: '书桌' }
+                ];
+                drawAll();
+            });
+            document.getElementById('clearAllWiresBtn').addEventListener('click', () => {
+                clearAllWires();
+            });
+        }
+
+        function init() {
+            setupLibrary();
+            bindTools();
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('dblclick', handleDoubleClick);
+            updateCircuit();
+        }
+
+        if(!CanvasRenderingContext2D.prototype.roundRect){
+            CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+                if(w<2*r) r=w/2; if(h<2*r) r=h/2;
+                this.moveTo(x+r,y); this.lineTo(x+w-r,y);
+                this.quadraticCurveTo(x+w,y,x+w,y+r);
+                this.lineTo(x+w,y+h-r); this.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+                this.lineTo(x+r,y+h); this.quadraticCurveTo(x,y+h,x,y+h-r);
+                this.lineTo(x,y+r); this.quadraticCurveTo(x,y,x+r,y);
+                return this;
+            };
+        }
+        init();
+    })();
+</script>
+</body>
+</html>
